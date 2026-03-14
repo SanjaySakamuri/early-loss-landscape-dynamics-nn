@@ -24,4 +24,23 @@ def train_model(epochs=5):
 
     monitor = TrainingMonitor()
 
-    
+    model.train()
+
+    for epoch in range(epochs):
+
+        for data, target in loader:
+
+            data, target = data.to(device), target.to(device)
+
+            optimizer.zero_grad()
+            output = model(data)
+
+            loss = loss_fn(output, target)
+            loss.backward()
+            optimizer.step()
+
+            monitor.record_loss(loss.item())
+
+        features = monitor.get_features()
+        
+        return model, features
