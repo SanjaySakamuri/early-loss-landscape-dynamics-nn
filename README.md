@@ -186,7 +186,4 @@ This project is released under the MIT License.
 
 ---
 
-## Author
 
-Manoj
-Computer Science Student
