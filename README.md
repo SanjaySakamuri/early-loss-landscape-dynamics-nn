@@ -1,4 +1,3 @@
-
 # Neural Network Loss Landscape Visualization
 
 ## Overview
@@ -165,8 +164,6 @@ The interface will open where you can:
 
 ---
 
-
-
 ---
 
 ## Learning Outcomes
@@ -185,5 +182,3 @@ This project helps understand:
 This project is released under the MIT License.
 
 ---
-
-
