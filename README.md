@@ -72,18 +72,9 @@ A top-down contour view of the loss landscape showing:
 
 ---
 
-### 3. Decision Boundary (Feature Space)
 
-Shows how the trained neural network separates two classes in feature space.
 
-* Red points → Class 0
-* Blue points → Class 1
-
-The background color indicates the predicted class regions.
-
----
-
-### 4. Convergence Diagnostics
+### 3. Convergence Diagnostics
 
 Training behavior is monitored through:
 
