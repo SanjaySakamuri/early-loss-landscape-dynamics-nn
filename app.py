@@ -20,7 +20,7 @@ class MicroNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(2, 16),
+            nn.Linear(30, 16),
             nn.Tanh(),
             nn.Linear(16, 16),
             nn.Tanh(),
@@ -31,11 +31,13 @@ class MicroNet(nn.Module):
         return self.net(x)
 
 @st.cache_data
-def get_real_data(noise=0.15):
+def get_real_data():
     data = load_breast_cancer()
     
     X = data.data
     y = data.target
+
+    X = (X - X.mean(axis=0)) / X.std(axis=0)
 
     X_tensor = torch.FloatTensor(X).to(device)
     y_tensor = torch.FloatTensor(y).view(-1, 1).to(device)
