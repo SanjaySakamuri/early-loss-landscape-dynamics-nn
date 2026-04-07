@@ -2,7 +2,7 @@ import streamlit as st
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.datasets import make_moons
+from sklearn.datasets import load_breast_cancer
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -11,7 +11,7 @@ st.set_page_config(page_title="Loss Landscape Dynamics", layout="wide", page_ico
 
 st.title("Neural Network Loss Landscapes: A Comparative Study of SGD, RMSProp, and Adam")
 st.markdown("""
-**Parameter Space vs. Feature Space Dynamics.** Watch how different optimization algorithms navigate the high-dimensional empirical risk surface (projected via Principal Directions) and how their physical movement alters the model's real-world decision boundary.
+**Parameter Space vs. Feature Space Dynamics.** Watch how different optimization algorithms navigate the high-dimensional empirical risk surface (projected via Principal Directions).
 """)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -20,7 +20,7 @@ class MicroNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(2, 16),
+            nn.Linear(30, 16),
             nn.Tanh(),
             nn.Linear(16, 16),
             nn.Tanh(),
@@ -31,8 +31,11 @@ class MicroNet(nn.Module):
         return self.net(x)
 
 @st.cache_data
-def get_synthetic_data(noise=0.15):
-    X, y = make_moons(n_samples=400, noise=noise, random_state=42)
+def get_real_data():
+    data = load_breast_cancer()
+    X = data.data
+    y = data.target
+    X = (X - X.mean(axis=0)) / X.std(axis=0)
     X_tensor = torch.FloatTensor(X).to(device)
     y_tensor = torch.FloatTensor(y).view(-1, 1).to(device)
     return X, y, X_tensor, y_tensor
@@ -116,21 +119,17 @@ with st.sidebar:
     
     st.markdown("### 📖 Algorithm Mechanics")
     if optimizer_choice == "SGD":
-        st.info("**Stochastic Gradient Descent (SGD):** The classic workhorse. It takes rigid, uniform steps down the steepest slope of the current batch. Without momentum, it struggles in ravines and often produces noisy, zig-zag trajectories, making it slower to converge in complex landscapes.")
+        st.info("Stochastic Gradient Descent (SGD)")
     elif optimizer_choice == "RMSProp":
-        st.warning("**Root Mean Square Propagation (RMSProp):** Designed to tackle diminishing learning rates. It divides the gradient by a running average of its recent magnitude. Watch how it adaptively scales its steps to plow straight through flat plateaus and narrow valleys without exploding.")
+        st.warning("Root Mean Square Propagation (RMSProp)")
     elif optimizer_choice == "Adam":
-        st.success("**Adaptive Moment Estimation (Adam):** The industry standard. It elegantly combines RMSProp's adaptive scaling with a physics-like *momentum* term (tracking past gradients). Notice how it smoothly carves curved paths through the landscape and accelerates effortlessly towards the minima.")
+        st.success("Adaptive Moment Estimation (Adam)")
 
     st.markdown("---")
     learning_rate = st.select_slider("Learning Rate", options=[0.01, 0.05, 0.1, 0.5, 1.0], value=0.1)
     epochs = st.slider("Epochs (Full Batch)", min_value=10, max_value=300, value=150, step=10)
-    data_noise = st.slider("Dataset Complexity (Noise)", 0.0, 0.5, 0.15)
-    
-    st.markdown("---")
-    st.markdown("**Performance Tip:** Because we use a Micro-MLP and full-batch training on 400 points, the math computes almost instantly.")
 
-X_np, y_np, X_tensor, y_tensor = get_synthetic_data(data_noise)
+X_np, y_np, X_tensor, y_tensor = get_real_data()
 
 model = MicroNet().to(device)
 init_weights = get_weights(model)
@@ -140,7 +139,8 @@ opt_weights = get_weights(model)
 
 d1 = opt_weights - init_weights
 dist = torch.norm(d1).item()
-if dist < 1e-5: d1 = torch.randn_like(opt_weights) 
+if dist < 1e-5:
+    d1 = torch.randn_like(opt_weights)
 d1 = d1 / torch.norm(d1)
 
 d2 = torch.randn_like(opt_weights)
@@ -159,14 +159,6 @@ for w in traj:
     z_proj.append(calculate_loss(model, X_tensor, y_tensor, nn.BCELoss()))
 set_weights(model, opt_weights)
 
-xx, yy = np.meshgrid(np.linspace(X_np[:, 0].min() - 0.5, X_np[:, 0].max() + 0.5, 50),
-                     np.linspace(X_np[:, 1].min() - 0.5, X_np[:, 1].max() + 0.5, 50))
-grid_tensor = torch.FloatTensor(np.c_[xx.ravel(), yy.ravel()]).to(device)
-
-model.eval()
-with torch.no_grad():
-    Z_boundary = model(grid_tensor).cpu().numpy().reshape(xx.shape)
-
 col1, col2 = st.columns(2)
 
 with col1:
@@ -174,20 +166,18 @@ with col1:
     fig_3d = go.Figure(data=[go.Surface(z=Z, x=alphas, y=betas, colorscale='Viridis', opacity=0.8, showscale=False)])
     fig_3d.add_trace(go.Scatter3d(
         x=x_proj, y=y_proj, z=z_proj, mode='lines+markers',
-        marker=dict(size=3, color='red'), line=dict(color='red', width=4), name='Trajectory'
+        marker=dict(size=3, color='red'), line=dict(color='red', width=4)
     ))
     fig_3d.update_layout(height=400, margin=dict(l=0, r=0, b=0, t=0), scene=dict(
-        xaxis_title='d1 (Start→End)', yaxis_title='d2 (Orthogonal)', zaxis_title='Loss'
+        xaxis_title='d1', yaxis_title='d2', zaxis_title='Loss'
     ))
     st.plotly_chart(fig_3d, width="stretch")
 
 with col2:
-    st.markdown("### 2. Optimization Trajectory (Contour)")
+    st.markdown("### 2. Optimization Trajectory")
     fig_contour = go.Figure(data=[go.Contour(z=Z, x=alphas, y=betas, colorscale='Viridis', showscale=False)])
-    fig_contour.add_trace(go.Scatter(x=x_proj, y=y_proj, mode='lines+markers', marker=dict(size=4, color='red'), line=dict(color='red', width=2), name='Path'))
-    fig_contour.add_trace(go.Scatter(x=[-dist], y=[0], mode='markers', marker=dict(size=12, symbol='star', color='yellow'), name='Start'))
-    fig_contour.add_trace(go.Scatter(x=[0], y=[0], mode='markers', marker=dict(size=10, symbol='x', color='black'), name='Optima'))
-    fig_contour.update_layout(height=400, margin=dict(l=0, r=0, b=0, t=0), xaxis_title="Principal Direction 1", yaxis_title="Orthogonal Direction 2")
+    fig_contour.add_trace(go.Scatter(x=x_proj, y=y_proj, mode='lines+markers', marker=dict(size=4, color='red'), line=dict(color='red', width=2)))
+    fig_contour.update_layout(height=400, margin=dict(l=0, r=0, b=0, t=0))
     st.plotly_chart(fig_contour, width="stretch")
 
 st.divider()
@@ -195,25 +185,20 @@ st.divider()
 col3, col4 = st.columns(2)
 
 with col3:
-    st.markdown("### 3. Final Decision Boundary (Feature Space)")
-    fig_db = go.Figure(data=[go.Contour(x=xx[0,:], y=yy[:,0], z=Z_boundary, colorscale='RdBu', opacity=0.4, showscale=False)])
-    fig_db.add_trace(go.Scatter(x=X_np[y_np==0, 0], y=X_np[y_np==0, 1], mode='markers', marker=dict(color='red', line=dict(color='white', width=1)), name='Class 0'))
-    fig_db.add_trace(go.Scatter(x=X_np[y_np==1, 0], y=X_np[y_np==1, 1], mode='markers', marker=dict(color='blue', line=dict(color='white', width=1)), name='Class 1'))
-    fig_db.update_layout(height=400, margin=dict(l=0, r=0, b=0, t=0), xaxis_title="Feature X1", yaxis_title="Feature X2")
-    st.plotly_chart(fig_db, width="stretch")
+    st.markdown("### 3. Loss Curve")
+    fig_loss = go.Figure()
+    fig_loss.add_trace(go.Scatter(y=losses, mode='lines'))
+    fig_loss.update_layout(height=400, margin=dict(l=0, r=0, b=0, t=0))
+    st.plotly_chart(fig_loss, width="stretch")
 
 with col4:
-    st.markdown("### 4. Convergence Diagnostics")
-    fig_metrics = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1)
-    fig_metrics.add_trace(go.Scatter(y=losses, mode='lines', name='Loss', line=dict(color='purple')), row=1, col=1)
-    fig_metrics.add_trace(go.Scatter(y=grads, mode='lines', name='Grad Norm', line=dict(color='orange')), row=2, col=1)
-    fig_metrics.update_layout(height=400, margin=dict(l=0, r=0, b=0, t=0), showlegend=False)
-    fig_metrics.update_yaxes(title_text="BCE Loss", row=1, col=1)
-    fig_metrics.update_yaxes(title_text="||Gradient||", row=2, col=1)
-    fig_metrics.update_xaxes(title_text="Epoch", row=2, col=1)
-    st.plotly_chart(fig_metrics, width="stretch")
+    st.markdown("### 4. Gradient Norm")
+    fig_grad = go.Figure()
+    fig_grad.add_trace(go.Scatter(y=grads, mode='lines'))
+    fig_grad.update_layout(height=400, margin=dict(l=0, r=0, b=0, t=0))
+    st.plotly_chart(fig_grad, width="stretch")
 
 col_a, col_b, col_c = st.columns(3)
 col_a.metric("Optimizer", optimizer_choice)
-col_b.metric("Final Loss", f"{losses[-1]:.4f}", delta=f"{losses[-1] - losses[0]:.4f}", delta_color="inverse")
+col_b.metric("Final Loss", f"{losses[-1]:.4f}")
 col_c.metric("Final Gradient Norm", f"{grads[-1]:.4f}")
