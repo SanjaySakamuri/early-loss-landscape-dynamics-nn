@@ -2,7 +2,7 @@ import streamlit as st
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from sklearn.datasets import make_moons
+from sklearn.datasets import load_breast_cancer
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -31,8 +31,12 @@ class MicroNet(nn.Module):
         return self.net(x)
 
 @st.cache_data
-def get_synthetic_data(noise=0.15):
-    X, y = make_moons(n_samples=400, noise=noise, random_state=42)
+def get_real_data(noise=0.15):
+    data = load_breast_cancer()
+    
+    X = data.data
+    y = data.target
+
     X_tensor = torch.FloatTensor(X).to(device)
     y_tensor = torch.FloatTensor(y).view(-1, 1).to(device)
     return X, y, X_tensor, y_tensor
